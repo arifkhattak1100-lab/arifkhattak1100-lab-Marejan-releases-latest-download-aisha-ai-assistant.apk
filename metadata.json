@@ -1,0 +1,6 @@
+{
+  "name": "Aisha",
+  "description": "Premium intelligent AI voice assistant and emotional AI companion powered by Gemini and ElevenLabs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

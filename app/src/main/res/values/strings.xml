@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Aisha</string>
+    <string name="channel_name_voice">Aisha Background Voice</string>
+    <string name="channel_desc_voice">Foreground service for Aisha continuous background voice assistant</string>
+    <string name="service_listening">Aisha is active and ready to listen</string>
+    <string name="open_app">Open Aisha</string>
+</resources>
