@@ -82,6 +82,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.core.content.ContextCompat
 import com.example.ui.MainViewModel
 import com.example.ui.theme.AishaBorder
@@ -114,14 +115,9 @@ fun SettingsScreen(
     var geminiTestResult by remember { mutableStateOf<String?>(null) }
     var isTestingGemini by remember { mutableStateOf(false) }
 
-    var elevenLabsKeyInput by remember { mutableStateOf(preferences.getElevenLabsApiKey()) }
-    var showElevenLabsKey by remember { mutableStateOf(false) }
-    var elevenLabsTestResult by remember { mutableStateOf<String?>(null) }
-    var isTestingElevenLabs by remember { mutableStateOf(false) }
-
-    var voiceIdInput by remember { mutableStateOf(preferences.getVoiceId()) }
-    var stability by remember { mutableFloatStateOf(preferences.getStability()) }
-    var similarity by remember { mutableFloatStateOf(preferences.getSimilarity()) }
+    var ttsPitch by remember { mutableFloatStateOf(preferences.getTtsPitch()) }
+    var ttsSpeed by remember { mutableFloatStateOf(preferences.getTtsSpeed()) }
+    var ttsTestPlaying by remember { mutableStateOf(false) }
 
     var userNameInput by remember { mutableStateOf(preferences.getUserName()) }
     var jealousyMode by remember { mutableStateOf(preferences.getJealousyMode()) }
@@ -316,137 +312,87 @@ fun SettingsScreen(
             }
 
             // 2. ElevenLabs Voice Engine
-            SectionHeader(title = "Voice Engine: ElevenLabs", icon = Icons.Default.RecordVoiceOver, color = AishaMagenta)
+            // 2. Voice Engine: Native Speech Synthesis
+            SectionHeader(title = "Voice Engine: Native Speech", icon = Icons.Default.RecordVoiceOver, color = AishaMagenta)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = AishaSurfaceVariant),
                 border = androidx.compose.foundation.BorderStroke(1.dp, AishaBorder)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Status Badge
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AishaEmerald.copy(alpha = 0.15f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = AishaEmerald,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Native Engine Active • No API Keys Required",
+                            color = AishaEmerald,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
                     Text(
-                        text = "ElevenLabs is Aisha's ONLY voice. Natural, expressive, and human-like.",
+                        text = "Aisha speaks directly using Android's native text-to-speech engine. Works offline, has zero quota limits, and requires no ElevenLabs account.",
                         color = AishaTextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
                     )
 
-                    OutlinedTextField(
-                        value = elevenLabsKeyInput,
-                        onValueChange = {
-                            elevenLabsKeyInput = it
-                            preferences.setCustomElevenLabsKey(it)
-                        },
-                        label = { Text("ElevenLabs API Key") },
-                        placeholder = { Text("xi-api-key") },
-                        singleLine = true,
-                        visualTransformation = if (showElevenLabsKey) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            IconButton(onClick = { showElevenLabsKey = !showElevenLabsKey }) {
-                                Icon(
-                                    imageVector = if (showElevenLabsKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = "Toggle key visibility",
-                                    tint = AishaTextMuted
-                                )
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("elevenlabs_key_input")
-                    )
-
+                    // Voice Presets
+                    Text("Voice Presets", color = AishaTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
-                                if (!clip.isNullOrBlank()) {
-                                    val cleaned = clip.replace("\"", "").trim()
-                                    elevenLabsKeyInput = cleaned
-                                    preferences.setCustomElevenLabsKey(cleaned)
-                                    Toast.makeText(context, "ElevenLabs key pasted and saved!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AishaSurface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, AishaBorder),
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Icon(Icons.Default.ContentPaste, contentDescription = null, tint = AishaMagenta, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Paste Key", color = AishaTextPrimary, fontSize = 12.sp)
+                        VoicePresetChip("Sweet & Warm", "sweet", if (ttsPitch in 1.18f..1.22f) "sweet" else "") {
+                            ttsPitch = 1.20f
+                            preferences.setTtsPitch(1.20f)
+                            ttsSpeed = 1.0f
+                            preferences.setTtsSpeed(1.0f)
                         }
-
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://elevenlabs.io/app/settings/api-keys")).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AishaSurface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, AishaBorder),
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Icon(Icons.Default.OpenInBrowser, contentDescription = null, tint = AishaTextSecondary, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Get Key", color = AishaTextSecondary, fontSize = 12.sp)
+                        VoicePresetChip("Natural & Calm", "natural", if (ttsPitch in 1.02f..1.08f) "natural" else "") {
+                            ttsPitch = 1.05f
+                            preferences.setTtsPitch(1.05f)
+                            ttsSpeed = 0.95f
+                            preferences.setTtsSpeed(0.95f)
+                        }
+                        VoicePresetChip("Cute & Playful", "cute", if (ttsPitch in 1.28f..1.35f) "cute" else "") {
+                            ttsPitch = 1.30f
+                            preferences.setTtsPitch(1.30f)
+                            ttsSpeed = 1.05f
+                            preferences.setTtsSpeed(1.05f)
                         }
                     }
 
-                    OutlinedTextField(
-                        value = voiceIdInput,
-                        onValueChange = {
-                            voiceIdInput = it
-                            preferences.setVoiceId(it)
-                        },
-                        label = { Text("ElevenLabs Voice ID") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("elevenlabs_voice_id_input")
-                    )
-
-                    // Voice presets
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        VoicePresetChip("Rachel (Natural)", "21m00Tcm4TlvDq8ikWAM", voiceIdInput) {
-                            voiceIdInput = it
-                            preferences.setVoiceId(it)
-                        }
-                        VoicePresetChip("Bella (Sweet)", "EXAVITQu4vr4xnSDxMaL", voiceIdInput) {
-                            voiceIdInput = it
-                            preferences.setVoiceId(it)
-                        }
-                        VoicePresetChip("Elli (Expressive)", "MF3mGyEYCl7XYWbV9V6O", voiceIdInput) {
-                            voiceIdInput = it
-                            preferences.setVoiceId(it)
-                        }
-                    }
-
-                    // Stability Slider
+                    // Voice Pitch Slider
                     Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Voice Stability", color = AishaTextPrimary, fontSize = 13.sp)
-                            Text("${(stability * 100).toInt()}%", color = AishaCyan, fontSize = 13.sp)
+                            Text("Voice Pitch / Sweetness", color = AishaTextPrimary, fontSize = 13.sp)
+                            Text(String.format(java.util.Locale.US, "%.2fx", ttsPitch), color = AishaCyan, fontSize = 13.sp)
                         }
                         Slider(
-                            value = stability,
+                            value = ttsPitch,
                             onValueChange = {
-                                stability = it
-                                preferences.setStability(it)
+                                ttsPitch = it
+                                preferences.setTtsPitch(it)
                             },
+                            valueRange = 0.7f..1.6f,
                             colors = SliderDefaults.colors(
                                 thumbColor = AishaCyan,
                                 activeTrackColor = AishaCyan
@@ -454,21 +400,22 @@ fun SettingsScreen(
                         )
                     }
 
-                    // Similarity Slider
+                    // Speech Speed Slider
                     Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Clarity & Similarity", color = AishaTextPrimary, fontSize = 13.sp)
-                            Text("${(similarity * 100).toInt()}%", color = AishaCyan, fontSize = 13.sp)
+                            Text("Speaking Speed", color = AishaTextPrimary, fontSize = 13.sp)
+                            Text(String.format(java.util.Locale.US, "%.2fx", ttsSpeed), color = AishaCyan, fontSize = 13.sp)
                         }
                         Slider(
-                            value = similarity,
+                            value = ttsSpeed,
                             onValueChange = {
-                                similarity = it
-                                preferences.setSimilarity(it)
+                                ttsSpeed = it
+                                preferences.setTtsSpeed(it)
                             },
+                            valueRange = 0.7f..1.5f,
                             colors = SliderDefaults.colors(
                                 thumbColor = AishaCyan,
                                 activeTrackColor = AishaCyan
@@ -478,31 +425,32 @@ fun SettingsScreen(
 
                     Button(
                         onClick = {
-                            scope.launch {
-                                isTestingElevenLabs = true
-                                elevenLabsTestResult = null
-                                val res = viewModel.elevenLabsApiClient.testConnection()
-                                isTestingElevenLabs = false
-                                elevenLabsTestResult = res.fold({ it }, { it.message ?: "Failed" })
-                            }
+                            ttsTestPlaying = true
+                            viewModel.audioPlayer.speakText(
+                                text = "Hi! I am Aisha, your voice assistant. My voice is ready and working smoothly!",
+                                pitch = ttsPitch,
+                                speechRate = ttsSpeed,
+                                onFinished = {
+                                    ttsTestPlaying = false
+                                }
+                            )
                         },
-                        enabled = !isTestingElevenLabs,
                         colors = ButtonDefaults.buttonColors(containerColor = AishaMagenta),
-                        modifier = Modifier.testTag("test_elevenlabs_button")
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("test_native_tts_button")
                     ) {
-                        if (isTestingElevenLabs) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
-                        } else {
-                            Text("Test Voice Connection", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-
-                    elevenLabsTestResult?.let { msg ->
+                        Icon(
+                            imageVector = Icons.Default.VolumeUp,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = msg,
-                            color = if (msg.contains("Connected", ignoreCase = true)) AishaEmerald else AishaMagenta,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
+                            text = if (ttsTestPlaying) "Playing Sample... 🔊" else "Test Voice & Play Sample 🔊",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }

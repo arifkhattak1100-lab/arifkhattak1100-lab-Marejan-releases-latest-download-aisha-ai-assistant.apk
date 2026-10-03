@@ -13,18 +13,13 @@ class AishaPreferences(context: Context) {
 
     companion object {
         const val KEY_CUSTOM_GEMINI_KEY = "custom_gemini_key"
-        const val KEY_CUSTOM_ELEVENLABS_KEY = "custom_elevenlabs_key"
-        const val KEY_ELEVENLABS_VOICE_ID = "elevenlabs_voice_id"
-        const val KEY_ELEVENLABS_STABILITY = "elevenlabs_stability"
-        const val KEY_ELEVENLABS_SIMILARITY = "elevenlabs_similarity"
+        const val KEY_TTS_PITCH = "tts_pitch"
+        const val KEY_TTS_SPEED = "tts_speed"
         const val KEY_MEMORY_ENABLED = "memory_enabled"
         const val KEY_BACKGROUND_VOICE_ENABLED = "background_voice_enabled"
         const val KEY_CONTINUOUS_CONVERSATION = "continuous_conversation"
         const val KEY_USER_NAME = "user_name"
         const val KEY_JEALOUSY_MODE = "jealousy_mode"
-
-        // Default female ElevenLabs voice: "21m00Tcm4TlvDq8ikWAM" (Rachel - natural, calm, warm)
-        const val DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
     }
 
     private val _memoryEnabledFlow = MutableStateFlow(isMemoryEnabled())
@@ -49,39 +44,15 @@ class AishaPreferences(context: Context) {
         prefs.edit().putString(KEY_CUSTOM_GEMINI_KEY, key.trim()).apply()
     }
 
-    // Resolves ElevenLabs API key: checks custom key first, then BuildConfig.ELEVENLABS_API_KEY
-    fun getElevenLabsApiKey(): String {
-        val customKey = prefs.getString(KEY_CUSTOM_ELEVENLABS_KEY, "")?.trim() ?: ""
-        if (customKey.isNotEmpty()) return customKey
-        return try {
-            val field = BuildConfig::class.java.getField("ELEVENLABS_API_KEY")
-            val key = ((field.get(null) as? String) ?: "").trim()
-            if (key == "MY_ELEVENLABS_API_KEY") "" else key
-        } catch (_: Throwable) {
-            ""
-        }
+    // TTS Voice Controls (Pitch & Speed)
+    fun getTtsPitch(): Float = prefs.getFloat(KEY_TTS_PITCH, 1.15f)
+    fun setTtsPitch(pitch: Float) {
+        prefs.edit().putFloat(KEY_TTS_PITCH, pitch.coerceIn(0.5f, 2.0f)).apply()
     }
 
-    fun setCustomElevenLabsKey(key: String) {
-        prefs.edit().putString(KEY_CUSTOM_ELEVENLABS_KEY, key.trim()).apply()
-    }
-
-    fun getVoiceId(): String {
-        return prefs.getString(KEY_ELEVENLABS_VOICE_ID, DEFAULT_VOICE_ID) ?: DEFAULT_VOICE_ID
-    }
-
-    fun setVoiceId(voiceId: String) {
-        prefs.edit().putString(KEY_ELEVENLABS_VOICE_ID, voiceId.trim()).apply()
-    }
-
-    fun getStability(): Float = prefs.getFloat(KEY_ELEVENLABS_STABILITY, 0.5f)
-    fun setStability(stability: Float) {
-        prefs.edit().putFloat(KEY_ELEVENLABS_STABILITY, stability).apply()
-    }
-
-    fun getSimilarity(): Float = prefs.getFloat(KEY_ELEVENLABS_SIMILARITY, 0.75f)
-    fun setSimilarity(similarity: Float) {
-        prefs.edit().putFloat(KEY_ELEVENLABS_SIMILARITY, similarity).apply()
+    fun getTtsSpeed(): Float = prefs.getFloat(KEY_TTS_SPEED, 1.0f)
+    fun setTtsSpeed(speed: Float) {
+        prefs.edit().putFloat(KEY_TTS_SPEED, speed.coerceIn(0.5f, 2.0f)).apply()
     }
 
     fun isMemoryEnabled(): Boolean = prefs.getBoolean(KEY_MEMORY_ENABLED, true)
@@ -112,5 +83,7 @@ class AishaPreferences(context: Context) {
     }
 
     fun isGeminiConfigured(): Boolean = getGeminiApiKey().isNotBlank()
-    fun isElevenLabsConfigured(): Boolean = getElevenLabsApiKey().isNotBlank()
+    // Native TTS is always configured and ready on Android
+    fun isVoiceReady(): Boolean = true
+    fun isElevenLabsConfigured(): Boolean = true // Always true so no missing voice warnings appear
 }

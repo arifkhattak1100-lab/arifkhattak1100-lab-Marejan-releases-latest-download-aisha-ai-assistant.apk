@@ -12,8 +12,6 @@ import com.example.data.model.AishaEmotion
 import com.example.data.model.AishaMemory
 import com.example.data.model.AssistantState
 import com.example.data.model.ChatMessageEntity
-import com.example.data.remote.ElevenLabsApiClient
-import com.example.data.remote.ElevenLabsResult
 import com.example.data.remote.GeminiApiClient
 import com.example.data.remote.GeminiResult
 import com.example.data.remote.NetworkMonitor
@@ -42,7 +40,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isOnline: StateFlow<Boolean> = networkMonitor.isConnected
 
     val geminiApiClient = GeminiApiClient(preferences, networkMonitor)
-    val elevenLabsApiClient = ElevenLabsApiClient(preferences, networkMonitor)
     val phoneActionManager = PhoneActionManager(application)
     val audioPlayer = AishaAudioPlayer(application)
     val speechManager = SpeechRecognitionManager(application)
@@ -199,39 +196,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     database.chatMessageDao().insertMessage(aishaMsg)
 
-                    // 4. Synthesize Speech via ElevenLabs (Aisha's ONLY voice)
-                    _connectionStatus.value = "Generating Voice..."
-                    speakWithElevenLabs(response.speechText)
+                    // 4. Speak response via Native Android TTS
+                    _connectionStatus.value = "Speaking"
+                    _assistantState.value = AssistantState.SPEAKING
+                    speakResponse(response.speechText)
                 }
             }
         }
     }
 
-    private suspend fun speakWithElevenLabs(textToSpeak: String) {
-        when (val voiceRes = elevenLabsApiClient.textToSpeech(textToSpeak)) {
-            is ElevenLabsResult.Error -> {
-                _assistantState.value = AssistantState.ERROR
-                _errorMessage.value = voiceRes.message
-                _connectionStatus.value = "Voice Unavailable"
-            }
+    fun speakResponse(textToSpeak: String) {
+        _assistantState.value = AssistantState.SPEAKING
+        _connectionStatus.value = "Speaking"
+        val pitch = preferences.getTtsPitch()
+        val speed = preferences.getTtsSpeed()
 
-            is ElevenLabsResult.Success -> {
-                _assistantState.value = AssistantState.SPEAKING
-                _connectionStatus.value = "Speaking"
-                withContext(Dispatchers.Main) {
-                    audioPlayer.playAudio(voiceRes.audioData) {
-                        // Playback completed
-                        if (preferences.isContinuousConversation()) {
-                            // Smooth continuous voice conversation
-                            startListening()
-                        } else {
-                            _assistantState.value = AssistantState.IDLE
-                            _connectionStatus.value = "Ready"
-                        }
-                    }
+        audioPlayer.speakText(
+            text = textToSpeak,
+            pitch = pitch,
+            speechRate = speed,
+            onFinished = {
+                if (preferences.isContinuousConversation()) {
+                    startListening()
+                } else {
+                    _assistantState.value = AssistantState.IDLE
+                    _connectionStatus.value = "Ready"
                 }
             }
-        }
+        )
     }
 
     fun submitTextPrompt(prompt: String) {
@@ -294,7 +286,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        audioPlayer.stop()
+        audioPlayer.shutdown()
         speechManager.destroy()
     }
 }

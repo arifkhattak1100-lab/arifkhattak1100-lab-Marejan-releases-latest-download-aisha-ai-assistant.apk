@@ -227,19 +227,19 @@ fun HomeScreen(
                     state = assistantState
                 )
 
-                // Setup Reminder Banner if ElevenLabs or Gemini is not configured
-                if (!viewModel.preferences.isElevenLabsConfigured()) {
+                // Setup Reminder Banner if Gemini is not configured
+                if (!viewModel.preferences.isGeminiConfigured()) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp)
                             .clickable { onNavigateToSettings() }
-                            .testTag("setup_elevenlabs_banner"),
+                            .testTag("setup_gemini_banner"),
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = AishaMagenta.copy(alpha = 0.15f)
+                            containerColor = AishaCyan.copy(alpha = 0.15f)
                         ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AishaMagenta.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AishaCyan.copy(alpha = 0.5f))
                     ) {
                         Row(
                             modifier = Modifier
@@ -254,20 +254,20 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.RecordVoiceOver,
+                                    imageVector = Icons.Default.Psychology,
                                     contentDescription = null,
-                                    tint = AishaMagenta,
+                                    tint = AishaCyan,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Column {
                                     Text(
-                                        text = "ElevenLabs API Key Required",
+                                        text = "Gemini API Key Required",
                                         color = AishaTextPrimary,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        text = "Tap to configure Aisha's natural voice in Settings",
+                                        text = "Tap to configure your Gemini API Key in Settings",
                                         color = AishaTextSecondary,
                                         fontSize = 11.sp
                                     )
@@ -275,11 +275,11 @@ fun HomeScreen(
                             }
                             Button(
                                 onClick = onNavigateToSettings,
-                                colors = ButtonDefaults.buttonColors(containerColor = AishaMagenta),
+                                colors = ButtonDefaults.buttonColors(containerColor = AishaCyan),
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                 modifier = Modifier.height(30.dp)
                             ) {
-                                Text("Configure", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Configure", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -332,7 +332,7 @@ fun HomeScreen(
                                     }
                                 }
 
-                                if (err.contains("ElevenLabs", ignoreCase = true) || err.contains("voice", ignoreCase = true)) {
+                                if (err.contains("voice", ignoreCase = true)) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Button(
                                         onClick = onNavigateToSettings,
@@ -340,7 +340,7 @@ fun HomeScreen(
                                         modifier = Modifier
                                             .align(Alignment.End)
                                             .height(34.dp)
-                                            .testTag("fix_elevenlabs_config_button"),
+                                            .testTag("fix_voice_config_button"),
                                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                     ) {
                                         Text("Open Voice Settings ⚙️", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)

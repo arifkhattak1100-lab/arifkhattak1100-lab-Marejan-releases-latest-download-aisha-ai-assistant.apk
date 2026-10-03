@@ -1,8 +1,8 @@
 package com.example.audio
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.MediaPlayer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,15 +13,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
+import java.util.Locale
 
-class AishaAudioPlayer(private val context: Context) {
+class AishaAudioPlayer(private val context: Context) : TextToSpeech.OnInitListener {
     companion object {
         private const val TAG = "AishaAudioPlayer"
     }
 
-    private var mediaPlayer: MediaPlayer? = null
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsInitialized = false
     private var amplitudeJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main)
 
@@ -33,57 +33,123 @@ class AishaAudioPlayer(private val context: Context) {
 
     private var onPlaybackFinished: (() -> Unit)? = null
 
+    init {
+        try {
+            textToSpeech = TextToSpeech(context.applicationContext, this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing TextToSpeech: ${e.message}", e)
+        }
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            isTtsInitialized = true
+            textToSpeech?.let { tts ->
+                val result = tts.setLanguage(Locale.US)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.w(TAG, "Locale.US not supported, falling back to default")
+                    tts.language = Locale.getDefault()
+                }
+
+                // Prefer natural female voice profile if available on device
+                try {
+                    val voices = tts.voices
+                    if (!voices.isNullOrEmpty()) {
+                        val femaleVoice = voices.firstOrNull { voice ->
+                            val name = voice.name.lowercase()
+                            (name.contains("female") || name.contains("en-us-x-sfg") || name.contains("en-us-x-tpd")) &&
+                                    !voice.isNetworkConnectionRequired
+                        } ?: voices.firstOrNull { it.name.lowercase().contains("female") }
+
+                        if (femaleVoice != null) {
+                            tts.voice = femaleVoice
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Voice selection info: ${e.message}")
+                }
+
+                tts.setPitch(1.15f) // Warm, sweet feminine tone
+                tts.setSpeechRate(1.0f)
+
+                tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        scope.launch {
+                            _isPlaying.value = true
+                            startAmplitudeSimulation()
+                        }
+                    }
+
+                    override fun onDone(utteranceId: String?) {
+                        scope.launch {
+                            cleanUp()
+                            onPlaybackFinished?.invoke()
+                        }
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        scope.launch {
+                            cleanUp()
+                            onPlaybackFinished?.invoke()
+                        }
+                    }
+
+                    override fun onError(utteranceId: String?, errorCode: Int) {
+                        Log.e(TAG, "TTS Error code: $errorCode")
+                        scope.launch {
+                            cleanUp()
+                            onPlaybackFinished?.invoke()
+                        }
+                    }
+                })
+            }
+        } else {
+            Log.e(TAG, "Failed to initialize TextToSpeech engine with status: $status")
+        }
+    }
+
     /**
-     * Plays the audio data returned directly from ElevenLabs TTS.
+     * Speaks text using native Android TextToSpeech engine.
      */
-    fun playAudio(audioBytes: ByteArray, onFinished: (() -> Unit)? = null) {
+    fun speakText(
+        text: String,
+        pitch: Float = 1.15f,
+        speechRate: Float = 1.0f,
+        onFinished: (() -> Unit)? = null
+    ) {
         stop()
         this.onPlaybackFinished = onFinished
 
-        try {
-            // Write audio bytes to temporary cache file
-            val tempFile = File.createTempFile("aisha_voice_", ".mp3", context.cacheDir)
-            FileOutputStream(tempFile).use { fos ->
-                fos.write(audioBytes)
-                fos.flush()
-            }
+        val tts = textToSpeech
+        if (tts == null || !isTtsInitialized) {
+            Log.w(TAG, "TTS not ready yet")
+            onFinished?.invoke()
+            return
+        }
 
-            mediaPlayer = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
-                        .build()
-                )
-                setDataSource(tempFile.absolutePath)
-                setOnPreparedListener { mp ->
-                    mp.start()
-                    _isPlaying.value = true
-                    startAmplitudeSimulation()
-                }
-                setOnCompletionListener {
-                    cleanUp()
-                    try {
-                        tempFile.delete()
-                    } catch (_: Exception) {}
-                    onPlaybackFinished?.invoke()
-                }
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
-                    cleanUp()
-                    try {
-                        tempFile.delete()
-                    } catch (_: Exception) {}
-                    onPlaybackFinished?.invoke()
-                    true
-                }
-                prepareAsync()
+        try {
+            tts.setPitch(pitch)
+            tts.setSpeechRate(speechRate)
+            val utteranceId = "aisha_utt_${System.currentTimeMillis()}"
+            val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            if (result == TextToSpeech.ERROR) {
+                Log.e(TAG, "TTS speak returned ERROR")
+                cleanUp()
+                onFinished?.invoke()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start audio playback: ${e.message}", e)
+            Log.e(TAG, "Exception during TTS speak: ${e.message}", e)
             cleanUp()
-            onPlaybackFinished?.invoke()
+            onFinished?.invoke()
         }
+    }
+
+    /**
+     * Backward-compatible playAudio stub.
+     */
+    fun playAudio(audioBytes: ByteArray, onFinished: (() -> Unit)? = null) {
+        onFinished?.invoke()
     }
 
     /**
@@ -92,18 +158,11 @@ class AishaAudioPlayer(private val context: Context) {
     fun stop() {
         amplitudeJob?.cancel()
         _speechAmplitude.value = 0f
-        mediaPlayer?.let { mp ->
-            try {
-                if (mp.isPlaying) {
-                    mp.stop()
-                }
-                mp.reset()
-                mp.release()
-            } catch (e: Exception) {
-                Log.w(TAG, "Error stopping media player: ${e.message}")
-            }
+        try {
+            textToSpeech?.stop()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping TTS: ${e.message}")
         }
-        mediaPlayer = null
         _isPlaying.value = false
     }
 
@@ -111,8 +170,6 @@ class AishaAudioPlayer(private val context: Context) {
         amplitudeJob?.cancel()
         _speechAmplitude.value = 0f
         _isPlaying.value = false
-        mediaPlayer?.release()
-        mediaPlayer = null
     }
 
     private fun startAmplitudeSimulation() {
@@ -121,7 +178,6 @@ class AishaAudioPlayer(private val context: Context) {
             var phase = 0f
             while (isActive && _isPlaying.value) {
                 phase += 0.25f
-                // Dynamic undulating voice amplitude for orb speaking visualization
                 val base = (kotlin.math.sin(phase) * 0.4f + 0.6f).toFloat()
                 val variation = ((System.currentTimeMillis() % 7) / 10f) * 0.3f
                 _speechAmplitude.value = (base + variation).coerceIn(0.2f, 1f)
@@ -129,5 +185,14 @@ class AishaAudioPlayer(private val context: Context) {
             }
             _speechAmplitude.value = 0f
         }
+    }
+
+    fun shutdown() {
+        stop()
+        try {
+            textToSpeech?.shutdown()
+        } catch (_: Exception) {}
+        textToSpeech = null
+        isTtsInitialized = false
     }
 }
